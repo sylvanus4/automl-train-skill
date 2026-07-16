@@ -1,0 +1,20 @@
+{
+  "method": "sft",
+  "tunable_env": ["LEARNING_RATE", "BATCH_SIZE", "LORA_R", "LORA_ALPHA", "MAX_STEPS", "WARMUP_STEPS", "WEIGHT_DECAY"],
+  "base": {
+    "MODEL": "your-org/base-model",
+    "TRAIN_DATA": "path-or-uri://train",
+    "EVAL_DATA": "path-or-uri://eval",
+    "OUTPUT": "path-or-uri://out",
+    "USE_LORA": "true",
+    "MAX_LENGTH": "2048"
+  },
+  "search_space": {
+    "LEARNING_RATE": {"type": "loguniform", "low": 1e-05, "high": 1e-03},
+    "LORA_R": {"type": "choice", "values": [8, 16, 32, 64]},
+    "BATCH_SIZE": {"type": "choice", "values": [1, 2, 4]},
+    "MAX_STEPS": {"type": "int_uniform", "low": 200, "high": 800}
+  },
+  "objective": {"metric": "eval_loss", "direction": "minimize"},
+  "budget": {"max_trials": 12, "max_concurrent": 2, "gpus_per_trial": 1, "gpu_cap": 4}
+}

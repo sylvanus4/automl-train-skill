@@ -1,0 +1,81 @@
+# automl-train
+
+A schema-gated hyperparameter-search (HPO / AutoML) **agent skill** that works with
+any training backend. It turns a single training run into a disciplined search and,
+crucially, **refuses to declare a win that isn't one**.
+
+It is a portable `SKILL.md` contract plus five small stdlib-only Python scripts.
+Drop it into Claude Code, Codex, or Gemini (or just run the scripts by hand).
+
+## Why
+
+Most AutoML demos show you the good number at the end. The interesting question is
+what happens when the search *doesn't* find an improvement. This skill answers that
+honestly: four gates, owned by deterministic code, decide whether a run may start
+and whether a result may be promoted. The model recommends the next hyperparameters
+and nothing else.
+
+The gate philosophy is borrowed from NVIDIA's
+[`tao-run-automl`](https://github.com/NVIDIA-TAO/tao-skill-bank) skill (Apache-2.0),
+which reviews recommendations, metric, search space, and expected runtime before it
+spends a GPU. What is different here: it is trainer-agnostic (you wire your own
+backend) and the gates are plain Python you can read in a minute.
+
+## The four gates
+
+1. **No schema, no search** — an invalid or unbounded search space cannot start the loop.
+2. **Baseline before tuning** — you must record a reference metric first.
+3. **Budget reviewed up front** — `max_concurrent × gpus_per_trial ≤ gpu_cap`.
+4. **Independent final eval** — the winning trial must beat the baseline on the same eval set, or it is not promoted.
+
+## Quickstart
+
+```bash
+# 1. validate a search space (fails closed)
+python scripts/search_space_schema.py --schema examples/search-space-example.json
+
+# 2. gates
+python scripts/hpo_gate.py --check schema --schema examples/search-space-example.json
+python scripts/hpo_gate.py --check budget --schema examples/search-space-example.json
+
+# 3. generate trials (random or ASHA successive-halving)
+python scripts/trial_config_gen.py --schema examples/search-space-example.json --strategy random --seed 7 --json
+
+# 4. after running trials on YOUR trainer and collecting {trial_id, value}:
+python scripts/select_best.py --results results.json --direction minimize --json
+python scripts/hpo_gate.py --check final --baseline baseline.json --best best.json
+```
+
+## Wiring your backend
+
+The scripts speak flat key/value trial configs and a numeric metric. You supply two adapters:
+
+| adapter | job | examples |
+|---|---|---|
+| `submit(config) -> run_id` | launch one training run | Kubeflow Trainer v2 `TrainJob`, Ray Tune, SLURM `sbatch`, local `subprocess` |
+| `scrape(run_id) -> value` | read the objective metric | `mlflow_scrape.py` (reference), Weights & Biases, stdout parsing |
+
+`tunable_env` in the schema declares which keys are searchable, so the validator is
+not bound to any single trainer's parameter names.
+
+## Files
+
+```
+SKILL.md                          # the agent contract
+scripts/search_space_schema.py    # gate #1: structural validation
+scripts/trial_config_gen.py       # random + ASHA successive-halving samplers
+scripts/mlflow_scrape.py          # reference metric scraper (MLflow REST)
+scripts/hpo_gate.py               # the four gates, by exit code
+scripts/select_best.py            # rank trials by objective
+examples/search-space-example.json
+```
+
+No dependencies beyond the Python standard library.
+
+## Credits
+
+- Gate discipline adapted from NVIDIA's [`tao-run-automl`](https://github.com/NVIDIA-TAO/tao-skill-bank) (Apache-2.0). See also [`NVIDIA/skills`](https://github.com/NVIDIA/skills).
+
+## License
+
+Apache-2.0.
