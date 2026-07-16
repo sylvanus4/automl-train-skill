@@ -21,12 +21,15 @@ which reviews recommendations, metric, search space, and expected runtime before
 spends a GPU. What is different here: it is trainer-agnostic (you wire your own
 backend) and the gates are plain Python you can read in a minute.
 
-## The four gates
+## The gates
 
-1. **No schema, no search** — an invalid or unbounded search space cannot start the loop.
+1. **No schema, no search** — an invalid, unbounded, or zero-training-step search space cannot start the loop.
 2. **Baseline before tuning** — you must record a reference metric first.
-3. **Budget reviewed up front** — `max_concurrent × gpus_per_trial ≤ gpu_cap`.
+3. **Launch reviewed up front** — `max_concurrent × gpus_per_trial ≤ gpu_cap`, plus an estimated wall-clock that fails closed against a stated limit.
 4. **Independent final eval** — the winning trial must beat the baseline on the same eval set, or it is not promoted.
+5. **Fail without burning budget** — failures are classified (data / image-cred / infra / spec-schema / model-code); a shared systemic cause stops the sweep instead of exhausting the GPU budget on runs that cannot succeed.
+
+Search strategies: **random**, **ASHA** (successive halving), and **Hyperband** (bracketed successive halving).
 
 ## Quickstart
 
@@ -62,11 +65,14 @@ not bound to any single trainer's parameter names.
 
 ```
 SKILL.md                          # the agent contract
-scripts/search_space_schema.py    # gate #1: structural validation
-scripts/trial_config_gen.py       # random + ASHA successive-halving samplers
+scripts/search_space_schema.py    # gate #1: structural + zero-step validation
+scripts/hpo_gate.py               # gates #2-4, by exit code
+scripts/launch_review.py          # gate #3: wall-time estimate + limit
+scripts/trial_config_gen.py       # random / ASHA / Hyperband samplers
 scripts/mlflow_scrape.py          # reference metric scraper (MLflow REST)
-scripts/hpo_gate.py               # the four gates, by exit code
+scripts/failure_classify.py       # gate #5: failure taxonomy + budget-preserving stop
 scripts/select_best.py            # rank trials by objective
+scripts/report.py                 # structured final report (incl. failures + root causes)
 examples/search-space-example.json
 ```
 

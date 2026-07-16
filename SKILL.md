@@ -19,36 +19,48 @@ here is that the four gates are owned by small deterministic scripts, so the
 model recommends the next hyperparameters and nothing else — schema validation,
 enum normalization, metric aggregation, and the promotion decision are code.
 
-## Four invariants (owned by code, not the model)
+## Invariants (owned by code, not the model)
 
-1. **No schema, no search.** `search_space_schema.py` must pass or the loop cannot start.
+1. **No schema, no search.** `search_space_schema.py` must pass — a valid, bounded space with no zero-training-step configs — or the loop cannot start.
 2. **Baseline before tuning.** `hpo_gate.py --check baseline` requires a recorded reference metric.
-3. **Budget reviewed up front.** `--check budget`: `max_concurrent * gpus_per_trial <= gpu_cap`.
+3. **Launch reviewed up front.** `--check budget` enforces `max_concurrent * gpus_per_trial <= gpu_cap`; `launch_review.py` estimates the wall-clock and refuses to start if it blows a stated limit.
 4. **Independent final eval.** The winning trial must beat the baseline on the same eval set, or it is not promoted.
+5. **Fail without burning budget.** `failure_classify.py` tags each failed trial (data / image-cred / infra / spec-schema / model-code); if consecutive trials share a systemic cause, the loop stops and reports instead of exhausting the GPU budget.
 
 ## Loop
 
 ```
-schema-gate -> baseline(+gate) -> budget-gate(review) ->
-  for each trial from trial_config_gen:  submit to YOUR trainer -> scrape metric ->
-  select_best -> final-eval on best -> final-gate -> promote
+schema-gate -> baseline(+gate) -> launch-review(wall-time, +gate) ->
+  for each trial from trial_config_gen:
+    submit to YOUR trainer -> scrape metric (or classify failure) ->
+    if consecutive same-cause failures: stop early ->
+  select_best -> final-eval on best -> final-gate -> report -> promote
 ```
 
-The model owns: writing the schema, choosing the strategy (random / ASHA), and
-reading gate results. Everything else is deterministic.
+The model owns: writing the schema, choosing the strategy (random / ASHA /
+Hyperband), and reading gate results. Everything else is deterministic.
+
+## Search strategies
+
+- **random** — independent samples; the honest baseline searcher.
+- **asha** — successive halving; promote the top `1/eta` each rung with more resource.
+- **hyperband** — bracketed successive halving; each bracket trades width for min-resource, then promotes with the ASHA rungs.
 
 ## Scripts (stdlib-only, JSON I/O)
 
 ```bash
 python scripts/search_space_schema.py --schema search-space.json          # gate #1
-python scripts/hpo_gate.py --check schema   --schema search-space.json
 python scripts/hpo_gate.py --check baseline --baseline baseline.json      # gate #2
 python scripts/hpo_gate.py --check budget   --schema search-space.json    # gate #3
+python scripts/launch_review.py --schema search-space.json --per-trial-min 8 --baseline-min 5 --max-minutes 60
 python scripts/trial_config_gen.py --schema search-space.json --strategy random --seed 7 --json
-python scripts/trial_config_gen.py --schema search-space.json --strategy asha --rung 1 --results results.json --json
+python scripts/trial_config_gen.py --schema search-space.json --strategy hyperband --R 27 --bracket 1 --json
 python scripts/mlflow_scrape.py --run-id <id> --metric eval_loss          # or adapt to your tracker
+python scripts/failure_classify.py classify --log trial.log               # data|image_cred|infra|spec_schema|model_code
+python scripts/failure_classify.py policy --results results.json --consecutive 2   # stop on shared cause?
 python scripts/select_best.py --results results.json --direction minimize --json
 python scripts/hpo_gate.py --check final --baseline baseline.json --best best.json  # gate #4
+python scripts/report.py --results results.json --baseline baseline.json --schema search-space.json
 ```
 
 ## Wiring your backend (the one part you write)

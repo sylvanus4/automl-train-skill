@@ -104,6 +104,22 @@ def validate(schema):
                 errors.append(f"search_space.{key}: also fixed in base (ambiguous — pick one)")
             _validate_dim(key, spec, errors)
 
+    # zero-training-step guard: resource-like params must stay >= 1
+    RESOURCE_KEYS = {"MAX_STEPS", "EPOCHS", "MAX_EPOCHS", "NUM_TRAIN_STEPS"}
+    for key in RESOURCE_KEYS:
+        if isinstance(base, dict) and key in base:
+            try:
+                if float(base[key]) < 1:
+                    errors.append(f"base.{key}: must be >= 1 (zero training steps)")
+            except (TypeError, ValueError):
+                pass
+        spec = ss.get(key) if isinstance(ss, dict) else None
+        if isinstance(spec, dict):
+            if spec.get("type") == "choice" and any(_num(v) and v < 1 for v in spec.get("values", [])):
+                errors.append(f"search_space.{key}: choice contains a value < 1 (zero training steps)")
+            elif _num(spec.get("low")) and spec["low"] < 1:
+                errors.append(f"search_space.{key}: low < 1 (zero training steps)")
+
     bud = schema.get("budget")
     if not isinstance(bud, dict):
         errors.append("budget: required object")
