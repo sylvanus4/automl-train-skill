@@ -59,7 +59,7 @@ faith. A tiny stdlib trainer (`examples/local_backend.py`) fits a linear model b
 gradient descent, so `LEARNING_RATE` and `MAX_STEPS` genuinely move the eval loss.
 
 ```bash
-python tests/smoke.py                  # 9 checks: gates gate, failures classify, loop composes
+python tests/smoke.py                  # 14 checks: gates gate, failures classify, loop composes
 python examples/run_local_sweep.py     # full loop: baseline -> 6 trials -> select -> final gate -> report
 ```
 
@@ -113,7 +113,7 @@ examples/local_backend.py         # backend #1: linear regression, eval_loss (mi
 examples/logreg_backend.py        # backend #2: logistic classifier, accuracy (maximize)
 examples/demo_trainer.sh          # backend #3: non-Python (bash) trainer
 examples/run_local_sweep.py       # end-to-end reference runner (copy + swap run_trial)
-tests/smoke.py                    # 9 stdlib checks — no pytest, no deps
+tests/smoke.py                    # 14 stdlib checks — no pytest, no deps
 ```
 
 No dependencies beyond the Python standard library.
