@@ -1,5 +1,7 @@
 # automl-train
 
+> Language: English (main) · [한국어](README.ko.md)
+
 A schema-gated hyperparameter-search (HPO / AutoML) **agent skill** that works with
 any training backend. It turns a single training run into a disciplined search and,
 crucially, **refuses to declare a win that isn't one**.
