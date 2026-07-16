@@ -4,14 +4,15 @@ A schema-gated hyperparameter-search (HPO / AutoML) **agent skill** that works w
 any training backend. It turns a single training run into a disciplined search and,
 crucially, **refuses to declare a win that isn't one**.
 
-It is a portable `SKILL.md` contract plus five small stdlib-only Python scripts.
-Drop it into Claude Code, Codex, or Gemini (or just run the scripts by hand).
+It is a portable `SKILL.md` contract plus eight small stdlib-only Python scripts,
+with a runnable zero-GPU end-to-end example. Drop it into Claude Code, Codex, or
+Gemini (or just run the scripts by hand).
 
 ## Why
 
 Most AutoML demos show you the good number at the end. The interesting question is
 what happens when the search *doesn't* find an improvement. This skill answers that
-honestly: four gates, owned by deterministic code, decide whether a run may start
+honestly: five gates, owned by deterministic code, decide whether a run may start
 and whether a result may be promoted. The model recommends the next hyperparameters
 and nothing else.
 
@@ -49,6 +50,25 @@ python scripts/select_best.py --results results.json --direction minimize --json
 python scripts/hpo_gate.py --check final --baseline baseline.json --best best.json
 ```
 
+## Verify it works (zero GPU)
+
+The repo ships a runnable end-to-end proof so you never take the composition on
+faith. A tiny stdlib trainer (`examples/local_backend.py`) fits a linear model by
+gradient descent, so `LEARNING_RATE` and `MAX_STEPS` genuinely move the eval loss.
+
+```bash
+python tests/smoke.py                  # 9 checks: gates gate, failures classify, loop composes
+python examples/run_local_sweep.py     # full loop: baseline -> 6 trials -> select -> final gate -> report
+```
+
+`run_local_sweep.py` is also the worked example: copy it and swap `run_trial()`
+for your own `submit()` + `scrape()` to point the loop at a real trainer.
+
+Failure policy note: only **systemic** causes (data / image-cred / infra /
+spec-schema) trigger the budget-preserving early stop, because a fresh trial will
+also hit them. A **model-code** failure (e.g. a diverging learning rate) is
+per-config, so the search keeps exploring rather than halting on one bad sample.
+
 ## Wiring your backend
 
 The scripts speak flat key/value trial configs and a numeric metric. You supply two adapters:
@@ -74,6 +94,9 @@ scripts/failure_classify.py       # gate #5: failure taxonomy + budget-preservin
 scripts/select_best.py            # rank trials by objective
 scripts/report.py                 # structured final report (incl. failures + root causes)
 examples/search-space-example.json
+examples/local_backend.py         # tiny stdlib trainer (real signal, zero GPU)
+examples/run_local_sweep.py       # end-to-end reference runner (copy + swap run_trial)
+tests/smoke.py                    # 9 stdlib checks — no pytest, no deps
 ```
 
 No dependencies beyond the Python standard library.

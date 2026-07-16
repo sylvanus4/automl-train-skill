@@ -3,3 +3,4 @@ __pycache__/
 results.json
 baseline.json
 best.json
+examples/.localrun/

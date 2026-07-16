@@ -1,0 +1,11 @@
+{
+  "method": "local-sgd",
+  "tunable_env": ["LEARNING_RATE", "MAX_STEPS"],
+  "base": {"MODEL": "toy-linear"},
+  "search_space": {
+    "LEARNING_RATE": {"type": "loguniform", "low": 1e-03, "high": 2.0},
+    "MAX_STEPS": {"type": "int_uniform", "low": 20, "high": 200}
+  },
+  "objective": {"metric": "eval_loss", "direction": "minimize"},
+  "budget": {"max_trials": 6, "max_concurrent": 1, "gpus_per_trial": 1, "gpu_cap": 1}
+}
