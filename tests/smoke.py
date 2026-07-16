@@ -80,5 +80,31 @@ r = run([PY, f"{E}/run_local_sweep.py"])
 check("end-to-end: runs + promotes", r.returncode == 0 and "final_gate=PASS(promote)" in r.stdout,
       r.stdout[-200:])
 
+# 7. second backend (different algorithm) produces its metric
+r = run([PY, f"{E}/logreg_backend.py"], env={**os.environ, "LEARNING_RATE": "0.5", "MAX_STEPS": "120"})
+check("backend #2 (logreg): accuracy produced", r.returncode == 0 and "accuracy" in r.stdout, r.stderr)
+
+# 8. language-agnostic backend: a NON-Python (bash) trainer the loop can scrape
+r = run(["bash", f"{E}/demo_trainer.sh"], env={**os.environ, "LEARNING_RATE": "0.3", "MAX_STEPS": "100"})
+check("backend #3 (bash, non-Python): eval_loss produced",
+      r.returncode == 0 and "eval_loss" in r.stdout, r.stderr)
+
+# 9. MAXIMIZE objective path (accuracy): select_best + final gate honor direction
+mres = "/tmp/_smoke_max.json"
+json.dump([{"trial_id": "a", "value": 0.81}, {"trial_id": "b", "value": 0.97},
+           {"trial_id": "c", "value": 0.74}], open(mres, "w"))
+r = run([PY, f"{S}/select_best.py", "--results", mres, "--direction", "maximize", "--json"])
+best_max = json.loads(r.stdout)["best"]["trial_id"]
+check("maximize: select_best picks highest", best_max == "b", r.stdout)
+json.dump({"metric": "accuracy", "value": 0.80}, open("/tmp/_smoke_maxbl.json", "w"))
+json.dump({"metric": "accuracy", "value": 0.97, "direction": "maximize"}, open("/tmp/_smoke_maxbest.json", "w"))
+r = run([PY, f"{S}/hpo_gate.py", "--check", "final", "--baseline", "/tmp/_smoke_maxbl.json",
+         "--best", "/tmp/_smoke_maxbest.json"])
+check("maximize: final gate passes when higher", r.returncode == 0, r.stdout)
+json.dump({"metric": "accuracy", "value": 0.70, "direction": "maximize"}, open("/tmp/_smoke_maxworse.json", "w"))
+r = run([PY, f"{S}/hpo_gate.py", "--check", "final", "--baseline", "/tmp/_smoke_maxbl.json",
+         "--best", "/tmp/_smoke_maxworse.json"])
+check("maximize: final gate fails when lower", r.returncode == 1, r.stdout)
+
 print(f"\n{passed} passed, {failed} failed")
 sys.exit(1 if failed else 0)

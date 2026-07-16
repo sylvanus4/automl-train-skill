@@ -66,6 +66,19 @@ python examples/run_local_sweep.py     # full loop: baseline -> 6 trials -> sele
 `run_local_sweep.py` is also the worked example: copy it and swap `run_trial()`
 for your own `submit()` + `scrape()` to point the loop at a real trainer.
 
+### Demonstrated backends
+
+The loop is backend-agnostic, and that is shown, not asserted. The test suite
+runs the same scripts against three different backends:
+
+- **`local_backend.py`** — linear regression, objective `eval_loss` (**minimize**), diverges at a bad LR (proves the failure path).
+- **`logreg_backend.py`** — a different algorithm (logistic classifier), objective `accuracy` (**maximize** — a different gate path).
+- **`demo_trainer.sh`** — a **non-Python (bash)** trainer, proving the loop drives any command that reads params and prints a metric.
+
+A real GPU backend (Kubeflow Trainer v2 + Kueue + MLflow) was validated
+separately. Ray Tune / SLURM / Weights & Biases follow the same two-function
+adapter shape.
+
 Failure policy note: only **systemic** causes (data / image-cred / infra /
 spec-schema) trigger the budget-preserving early stop, because a fresh trial will
 also hit them. A **model-code** failure (e.g. a diverging learning rate) is
@@ -96,7 +109,9 @@ scripts/failure_classify.py       # gate #5: failure taxonomy + budget-preservin
 scripts/select_best.py            # rank trials by objective
 scripts/report.py                 # structured final report (incl. failures + root causes)
 examples/search-space-example.json
-examples/local_backend.py         # tiny stdlib trainer (real signal, zero GPU)
+examples/local_backend.py         # backend #1: linear regression, eval_loss (minimize)
+examples/logreg_backend.py        # backend #2: logistic classifier, accuracy (maximize)
+examples/demo_trainer.sh          # backend #3: non-Python (bash) trainer
 examples/run_local_sweep.py       # end-to-end reference runner (copy + swap run_trial)
 tests/smoke.py                    # 9 stdlib checks — no pytest, no deps
 ```
